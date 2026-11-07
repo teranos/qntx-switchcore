@@ -83,34 +83,34 @@
     "pyre-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1794071429,
-        "narHash": "sha256-IFaXb3JeMe+PcAlscAaxGaBMIzentWOuGMqhLWTmmM8=",
+        "lastModified": 1794087374,
+        "narHash": "sha256-d3E1qS2gWZ3OUb6qJMXbSp9WD6O7YCv0IopcQT1p/L4=",
         "owner": "teranos",
         "repo": "pyre",
-        "rev": "42d914b7944ebed71b05d95ce9a3f046dccb6fb9",
+        "rev": "0f89290aaa59fe283319f1769bccc9ca3fb0223d",
         "type": "github"
       },
       "original": {
         "owner": "teranos",
         "repo": "pyre",
-        "rev": "42d914b7944ebed71b05d95ce9a3f046dccb6fb9",
+        "rev": "0f89290aaa59fe283319f1769bccc9ca3fb0223d",
         "type": "github"
       }
     },
     "qntx-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1794061412,
-        "narHash": "sha256-bHkfuwmivE29uXjYqABTSNlUNu5hl41cwgnCPLRczbM=",
+        "lastModified": 1794084441,
+        "narHash": "sha256-PnPMxYNQmtcNN0hGqqh6qf4Fz4EpVez6BHS2Zhzh9G0=",
         "owner": "teranos",
         "repo": "QNTX",
-        "rev": "8793497a197fc945676a11f2acc3f14d305136f7",
+        "rev": "e82dfab1927de922060a182f7e5faf3b4b88614e",
         "type": "github"
       },
       "original": {
         "owner": "teranos",
         "repo": "QNTX",
-        "rev": "8793497a197fc945676a11f2acc3f14d305136f7",
+        "rev": "e82dfab1927de922060a182f7e5faf3b4b88614e",
         "type": "github"
       }
     },
