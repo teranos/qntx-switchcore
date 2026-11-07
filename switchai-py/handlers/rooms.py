@@ -6,6 +6,7 @@ import builtins
 import datetime
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -143,13 +144,42 @@ def _start():
         raise RuntimeError("switch-core did not answer /health within 120s")
 
 
-def _register(name, description=""):
-    # Registered over itself, so a restarted plugin holds a key that works.
+def _agents_file():
+    return os.path.join(_config("state_dir"), "agents.json")
+
+
+def _kept_agents():
+    # The agents switch-core holds for the node, with their keys, kept across
+    # restarts: registering one again would give it a new key, and leave every
+    # other holder of the old one refused.
+    path = _agents_file()
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
+def _keep_agent(name, agent):
+    kept = _kept_agents()
+    kept[name] = agent
+    path = _agents_file()
+    fd = os.open(path + ".new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(kept, f)
+    os.replace(path + ".new", path)
+
+
+def _register(name, description="", display_name=None):
     held = _held()
     if name in held["agents"]:
         return held["agents"][name]
+    kept = _kept_agents().get(name)
+    if kept:
+        held["agents"][name] = kept
+        return kept
     registered = _http("POST", "/agents", {
         "name": name,
+        "display_name": display_name or name,
         "description": description or name,
         "connector_type": "qntx",
         "integration_profile": {"connection_model": "session_passive", "message_exchange": True,
@@ -158,6 +188,7 @@ def _register(name, description=""):
         "overwrite": True,
     }, key=_key("registration_token"))
     held["agents"][name] = {"id": registered["id"], "key": registered["api_key"]}
+    _keep_agent(name, held["agents"][name])
     return held["agents"][name]
 
 
@@ -170,13 +201,32 @@ def _op(agent, op, body):
     return _http("POST", f"/agents/{agent['id']}/ops/{op}", body, key=agent["key"]).get("result")
 
 
-def _as(by):
-    # An agent the node names asks as itself; a person, as the node.
-    name = (by or {}).get("name") or ""
+def _slug(name):
+    # switch-core's agent names are lower case letters, digits and dashes.
+    return re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-")[:32]
+
+
+def _as(by, room=None):
+    # Whoever the node names asks as themselves: an agent it holds by its name,
+    # and a person, or a token, registered under theirs and brought into the
+    # room. The node itself asks as qntx-node.
+    by = by or {}
+    name = by.get("name") or ""
     held = _held()
-    if name and name in held["agents"]:
+    if name in held["agents"]:
         return held["agents"][name]
-    return _node()
+    slug = _slug(name or by.get("did", ""))
+    if not slug:
+        return _node()
+    who = _register(slug, "a person at the node", display_name=name or None)
+    if room and (slug, room) not in held.setdefault("in_rooms", set()):
+        try:
+            _op(_node(), "invite_agent_to_room", {"room_id": room, "agent_name": slug})
+        except RuntimeError as e:
+            if "already" not in str(e).lower() and "409" not in str(e):
+                raise
+        held["in_rooms"].add((slug, room))
+    return who
 
 
 def _room(listed):
@@ -192,6 +242,44 @@ def _rooms():
     return _op(_node(), "list_rooms", {}) or []
 
 
+def _live(name):
+    # The agents the node runs answer in the room through the node, which wakes
+    # them; held live here, switch-core does not answer for them with its own
+    # line for an agent nobody runs.
+    held = _held()
+    live = held.setdefault("live", {})
+    if live.get(name) and live[name].is_alive():
+        return
+    agent = held["agents"][name]
+
+    def hold():
+        import asyncio
+
+        import websockets
+
+        async def connected():
+            url = f"ws://127.0.0.1:{_config('port')}/agents/{agent['id']}/connection/ws?scope=all"
+            while True:
+                try:
+                    async with websockets.connect(url, additional_headers={"Authorization": "Bearer " + agent["key"]}) as ws:
+                        cursor = 0
+                        async for raw in ws:
+                            frame = json.loads(raw)
+                            cursor = frame.get("id") or cursor
+                            if frame.get("event") == "ping":
+                                await ws.send(json.dumps({"type": "pong", "cursor": cursor}))
+                            elif frame.get("event") == "refused":
+                                held.setdefault("refused", {})[name] = frame.get("data")
+                except Exception as e:
+                    held.setdefault("dropped", {})[name] = f"{type(e).__name__}: {e}"
+                await asyncio.sleep(5)
+
+        asyncio.run(connected())
+
+    live[name] = threading.Thread(target=hold, name=f"switch-live-{name}", daemon=True)
+    live[name].start()
+
+
 def _node_room():
     # Every Node Agent is in the Node Room.
     held = _held()
@@ -201,6 +289,7 @@ def _node_room():
     agents = [a.strip() for a in _config("node_agents").split(",") if a.strip()]
     for each in agents:
         _register(each, "a Node Agent of this node")
+        _live(each)
     for listed in _rooms():
         if listed.get("name") == name:
             held["node_room"] = listed.get("room_id")
@@ -216,7 +305,7 @@ def _at(ms):
 
 
 def _post(by, room, content):
-    sender = _as(by)
+    sender = _as(by, room)
     posted = _http("POST", f"/agents/{sender['id']}/message", {"room_id": room, "content": content, "metadata": {}}, key=sender["key"])
     return posted.get("event_id", "")
 
