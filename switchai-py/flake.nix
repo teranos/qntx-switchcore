@@ -8,12 +8,12 @@
     flake-utils.url = "github:numtide/flake-utils";
     # pyre main, with @llm, @route, plugin_config (teranos/pyre#6) @rooms (teranos/pyre#8) and handlers carried by the build (teranos/pyre#10).
     pyre-src = {
-      url = "github:teranos/pyre/42d914b7944ebed71b05d95ce9a3f046dccb6fb9";
+      url = "github:teranos/pyre/0f89290aaa59fe283319f1769bccc9ca3fb0223d";
       flake = false;
     };
     # The protocol pyre builds against: the ref pyre's Cargo.lock names.
     qntx-src = {
-      url = "github:teranos/QNTX/8793497a197fc945676a11f2acc3f14d305136f7";
+      url = "github:teranos/QNTX/e82dfab1927de922060a182f7e5faf3b4b88614e";
       flake = false;
     };
     # Switch Rooms' source; switch-core is its core/.
@@ -86,7 +86,7 @@
         };
 
         outputHashes = {
-          "qntx-ats-0.2.44" = "sha256-bHkfuwmivE29uXjYqABTSNlUNu5hl41cwgnCPLRczbM=";
+          "qntx-ats-0.2.44" = "sha256-PnPMxYNQmtcNN0hGqqh6qf4Fz4EpVez6BHS2Zhzh9G0=";
         };
 
         switchai-py = pkgs.rustPlatform.buildRustPackage {
