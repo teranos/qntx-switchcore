@@ -70,10 +70,10 @@
           }).forPkgs
             { inherit pkgs; };
 
-        # The interpreter's standard library and switch-core's locked
-        # dependencies in one tree, python313 first so its bin/python3 is the
-        # one joined, and the venv's pyvenv.cfg left out: the release tree
-        # runs on PYTHONHOME, as otaripy's does.
+        # 「[Opus 5.5] The interpreter's standard library and switch-core's locked」
+        # 「[Opus 5.5] dependencies in one tree, python313 first so its bin/python3 is the」
+        # 「[Opus 5.5] one joined, and the venv's pyvenv.cfg left out: the release tree」
+        # 「[Opus 5.5] runs on PYTHONHOME, as otaripy's does.」
         pythonEnv = pkgs.symlinkJoin {
           name = "switchai-py-env";
           paths = [
