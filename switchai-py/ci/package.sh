@@ -172,4 +172,10 @@ exec "$HERE/qntx-switchai-py-plugin.bin" --name switchai-py "$@"
 LAUNCHER
 chmod 0755 "$OUT/qntx-switchai-py-plugin"
 
+# The plugin's own handlers, beside the binary, where pyre reads them: the
+# rooms are the node's, and stand in no namespace.
+mkdir -p "$OUT/handlers"
+install -m 0644 "$(dirname "$0")/../handlers/"*.py "$OUT/handlers/"
+echo "handlers: $(ls "$OUT/handlers" | tr '\n' ' ')"
+
 echo "packaged $OUT/qntx-switchai-py-plugin"
