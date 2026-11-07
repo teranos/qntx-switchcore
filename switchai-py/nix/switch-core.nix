@@ -25,25 +25,31 @@ let
       python ? pkgs.python313,
     }:
     let
+      # switch_core/main.py:2506 reads alembic.ini at
+      # Path(__file__).resolve().parent.parent: resolve() follows the venv's
+      # symlink to switch-core's own store path, so the file goes in that
+      # package's site-packages. Its script_location,
+      # %(here)s/switch_core/migrations, is in the package.
+      overrides = final: prev: {
+        switch-core = prev.switch-core.overrideAttrs (old: {
+          postInstall = (old.postInstall or "") + ''
+            cp ${workspaceRoot}/alembic.ini $out/${python.sitePackages}/alembic.ini
+          '';
+        });
+      };
+
       pythonSet = (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope (
         lib.composeManyExtensions [
           pyproject-build-systems.overlays.wheel
           overlay
+          overrides
         ]
       );
 
       switch-core-venv = pythonSet.mkVirtualEnv "switch-core-env" workspace.deps.default;
-
-      # switch_core/main.py:2506 reads alembic.ini from the directory above the
-      # package, which installed is site-packages itself; its script_location,
-      # %(here)s/switch_core/migrations, is in the wheel.
-      switch-core-alembic = pkgs.runCommand "switch-core-alembic" { } ''
-        mkdir -p $out/${python.sitePackages}
-        cp ${workspaceRoot}/alembic.ini $out/${python.sitePackages}/alembic.ini
-      '';
     in
     {
-      inherit pythonSet switch-core-venv switch-core-alembic;
+      inherit pythonSet switch-core-venv;
     };
 in
 {

@@ -70,16 +70,15 @@
           }).forPkgs
             { inherit pkgs; };
 
-        # The interpreter's standard library, switch-core's locked
-        # dependencies and alembic.ini in one tree, python313 first so its
-        # bin/python3 is the one joined, and the venv's pyvenv.cfg left out:
-        # the release tree runs on PYTHONHOME, as otaripy's does.
+        # The interpreter's standard library and switch-core's locked
+        # dependencies in one tree, python313 first so its bin/python3 is the
+        # one joined, and the venv's pyvenv.cfg left out: the release tree
+        # runs on PYTHONHOME, as otaripy's does.
         pythonEnv = pkgs.symlinkJoin {
           name = "switchai-py-env";
           paths = [
             pkgs.python313
             switchCore.switch-core-venv
-            switchCore.switch-core-alembic
           ];
           postBuild = ''
             rm $out/pyvenv.cfg
