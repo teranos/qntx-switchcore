@@ -76,7 +76,10 @@ instead of opening one chat per agent.
 ## State of it
 
 Rooms answer end to end from switch-core on the owner's node: list, get, read,
-post, wake. A wake posts the mention into the room; the turn it should start on
-the named Node Agent is being wired. The Node Room's `of.node` is not yet set;
-the App finds the Node Room by it, so on this node the phone does not open into
-the room until it is.
+post, wake; the plugin survived a reinstall and two restarts in a day. A wake
+posts the mention into the room, and what answers it today is switch-core's own
+canned reply for that name, not the named Node Agent's harness: the turn it
+should start is being wired. Every post shows as the node (`qntx-node`), a
+person's and an agent's alike, until who-posts is carried through. The Node
+Room's `of.node` is not yet set; the App finds the Node Room by it, so on this
+node the phone does not open into the room until it is.
