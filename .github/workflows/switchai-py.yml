@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Debian 13, as q runs it: otaripy's VERIFY_IMAGE.
+  VERIFY_IMAGE: debian@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd
+
 jobs:
   linux-amd64:
     runs-on: ubuntu-latest
@@ -25,3 +29,101 @@ jobs:
       - name: Build plugin
         working-directory: switchai-py
         run: nix build .#switchai-py --show-trace -L
+      - name: Resolve version
+        id: version
+        working-directory: switchai-py
+        run: |
+          VERSION="$(nix eval --raw .#switchai-py.version)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Package
+        id: package
+        working-directory: switchai-py
+        run: |
+          ARTIFACT="qntx-switchai-py-plugin-${{ steps.version.outputs.version }}-linux-amd64.tar.gz"
+          PATH="$(nix build nixpkgs#patchelf --no-link --print-out-paths)/bin:$PATH" \
+            ci/package.sh result release
+          tar -czf "$ARTIFACT" -C release qntx-switchai-py-plugin qntx-switchai-py-plugin.bin lib/ python/
+          sha256sum "$ARTIFACT" > "$ARTIFACT.sha256"
+          echo "artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
+      - name: Verify the archive is one the node can take
+        working-directory: switchai-py
+        run: ci/size.sh "${{ steps.package.outputs.artifact }}" release 150000000
+      - name: Verify no store paths remain
+        working-directory: switchai-py
+        run: |
+          BIN=release/qntx-switchai-py-plugin.bin
+          readelf -l "$BIN" | grep 'Requesting program interpreter'
+          if readelf -l "$BIN" | grep -q '/nix/store'; then
+            echo "artifact still names a /nix/store interpreter" >&2
+            exit 1
+          fi
+          if readelf -d "$BIN" | grep -q '/nix/store'; then
+            echo "artifact still has /nix/store in its RPATH" >&2
+            exit 1
+          fi
+          failed=0
+          for exe in release/python/bin/*; do
+            [ -f "$exe" ] || continue
+            if ! head -c 4 "$exe" | grep -q ELF; then
+              if grep -q '/nix/store' "$exe"; then
+                echo "$exe is a script naming /nix/store: $(head -n 1 "$exe")" >&2
+                failed=1
+              fi
+              continue
+            fi
+            echo "== $exe"
+            readelf -l "$exe" | grep 'Requesting program interpreter' || true
+            readelf -d "$exe" | grep -E 'RPATH|RUNPATH' || true
+            if readelf -l "$exe" | grep -q '/nix/store' || readelf -d "$exe" | grep -q '/nix/store'; then
+              echo "$exe still names /nix/store as its interpreter or library path" >&2
+              failed=1
+            fi
+            named=$(grep -a -o '/nix/store/[a-z0-9]\{32\}-[^/[:space:][:cntrl:]]*/bin/[A-Za-z0-9._-]*' "$exe" | sort -u || true)
+            if [ -n "$named" ]; then
+              echo "$exe names programs by store path, which it may exec:" >&2
+              echo "$named" >&2
+              failed=1
+            fi
+          done
+          exit $failed
+      - name: Verify the tree asks for no glibc above the box's
+        working-directory: switchai-py
+        run: ci/glibc.sh release 2.41
+      - name: Verify artifact runs on the target
+        working-directory: switchai-py
+        run: |
+          rm -rf /tmp/verify && mkdir -p /tmp/verify
+          tar -xzf "${{ steps.package.outputs.artifact }}" -C /tmp/verify
+          docker run --rm -v /tmp/verify:/plugin:ro "$VERIFY_IMAGE" \
+            /plugin/qntx-switchai-py-plugin --version
+          docker run --rm -v /tmp/verify:/plugin:ro "$VERIFY_IMAGE" sh -c '
+            export PYTHONHOME=/plugin/python
+            export PYTHONPATH=/plugin/python/lib/python3.13:/plugin/python/lib/python3.13/site-packages
+            py=/plugin/python/bin/python3
+            ls -lL "$py"
+            "$py" -c "import sys; print(sys.version, sys.prefix)"
+            started=$?
+            if [ "$started" -ne 0 ]; then
+              echo "the interpreter did not start, exit $started; the loader says:" >&2
+              ldd "$py" >&2
+              exit 1
+            fi
+            "$py" -c "
+          import pathlib, switch_core, switch_core.main
+          ini = pathlib.Path(switch_core.__file__).resolve().parent.parent / \"alembic.ini\"
+          assert ini.is_file(), ini
+          print(switch_core.__file__, ini)
+          "
+            imported=$?
+            if [ "$imported" -ne 0 ]; then
+              echo "the interpreter started and the import failed, exit $imported" >&2
+              exit 1
+            fi
+          '
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact }}
+          path: |
+            switchai-py/${{ steps.package.outputs.artifact }}
+            switchai-py/${{ steps.package.outputs.artifact }}.sha256
