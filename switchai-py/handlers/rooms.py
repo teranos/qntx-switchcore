@@ -17,13 +17,12 @@ PROVIDER = "switchai-py"
 REACH_WAITS = 2
 
 # The plugin's record on the node may name each of these; unnamed, switch-core's
-# database is reached over the local socket as the plugin's own user, peer
-# authenticated, and its keys are the plugin's own (_keys).
+# database is the node's PostgreSQL on 127.0.0.1 as the plugin's own user, and
+# its keys, the database password among them, are the plugin's own (_keys).
 DEFAULTS = {
-    "db_host": "/var/run/postgresql",
+    "db_host": "127.0.0.1",
     "db_port": "5432",
     "db_user": "root",
-    "db_password": "peer",
     "db_name": "switchai",
     "state_dir": "/var/lib/qntx/switchai-py",
     "server_name": "localhost",
@@ -51,6 +50,7 @@ def _keys():
         "secret_keys": "k1:" + secrets.token_urlsafe(48),
         "admin_email": "tim@example.com",
         "admin_password": secrets.token_urlsafe(32),
+        "db_password": secrets.token_urlsafe(32),
     }
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:
@@ -85,9 +85,12 @@ def _http(method, path, body=None, key=None):
 
 
 def _serve():
-    # switch-core's run() asks its loop for signal handlers, which only the main
-    # thread's loop gives; a loop that takes none is a case switch-core handles.
+    # switch-core's run() takes SIGINT and SIGTERM, which only the main thread
+    # may. Here the node stops the plugin's process, switch-core with it, so its
+    # loop takes no signal handlers and its main module installs none.
     import asyncio
+    import signal
+    import types
 
     from switch_core import main as core
     from switch_core.config import SwitchConfig
@@ -96,6 +99,8 @@ def _serve():
     class _Loop(asyncio.SelectorEventLoop):
         def add_signal_handler(self, *args, **kwargs):
             raise NotImplementedError
+
+    core.signal = types.SimpleNamespace(SIGINT=signal.SIGINT, SIGTERM=signal.SIGTERM, signal=lambda *args: None)
 
     config = SwitchConfig()
     asyncio.run(core._migrate_and_grant(config))
@@ -111,7 +116,7 @@ def _start():
             "DB_HOST": _config("db_host"),
             "DB_PORT": _config("db_port"),
             "DB_USER": _config("db_user"),
-            "DB_PASSWORD": _config("db_password"),
+            "DB_PASSWORD": _key("db_password"),
             "DB_NAME": _config("db_name"),
             "DB_REQUIRE_RESTRICTED_ROLE": "false",
             "ID_SERVER_NAME": _config("server_name"),
@@ -236,7 +241,7 @@ def answer(call, request):
     if call == "GetRoom":
         found = [r for r in _rooms() if r.get("room_id") == request.get("room")]
         if not found:
-            return {"error": f"switchai-py holds no room {request.get('room')}"}
+            return {"error": {"code": "NOT_FOUND", "message": f"switchai-py holds no room {request.get('room')}"}}
         people = _http("GET", f"/agents/rooms/{request['room']}/participants", key=_node()["key"])
         agents = [{"name": p.get("name", ""), "harness": "switch"} for p in people.get("participants", []) if p.get("type") == "agent"]
         return {"room": _room(found[0]), "agents": agents}
@@ -264,7 +269,7 @@ def answer(call, request):
                      "body": e.get("body", ""), "at": _at(e["timestamp"]) if e.get("timestamp") else ""}
                     for e in read.get("events", [])]
         return {"messages": messages, "truncated": bool(read.get("has_more"))}
-    return {"error": f"switchai-py does not answer {call}"}
+    return {"error": {"code": "INVALID_ARGUMENT", "message": f"switchai-py does not answer {call}"}}
 
 
 @rooms()
@@ -272,4 +277,4 @@ def held(asked):
     try:
         return answer(asked.get("call", ""), asked.get("request") or {})
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": {"code": "UNAVAILABLE", "message": f"{type(e).__name__}: {e}"}}
