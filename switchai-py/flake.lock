@@ -83,17 +83,17 @@
     "pyre-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1794065506,
-        "narHash": "sha256-d4DsQ6EF7jXTRC57kZl1xs4XRVezVyGdRjyBryQVAoo=",
+        "lastModified": 1794071429,
+        "narHash": "sha256-IFaXb3JeMe+PcAlscAaxGaBMIzentWOuGMqhLWTmmM8=",
         "owner": "teranos",
         "repo": "pyre",
-        "rev": "a6c4cebc83bb3b932d6602fa739761d072ca2356",
+        "rev": "42d914b7944ebed71b05d95ce9a3f046dccb6fb9",
         "type": "github"
       },
       "original": {
         "owner": "teranos",
         "repo": "pyre",
-        "rev": "a6c4cebc83bb3b932d6602fa739761d072ca2356",
+        "rev": "42d914b7944ebed71b05d95ce9a3f046dccb6fb9",
         "type": "github"
       }
     },
