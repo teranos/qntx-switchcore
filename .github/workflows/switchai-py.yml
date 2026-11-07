@@ -42,7 +42,7 @@ jobs:
           ARTIFACT="qntx-switchai-py-plugin-${{ steps.version.outputs.version }}-linux-amd64.tar.gz"
           PATH="$(nix build nixpkgs#patchelf --no-link --print-out-paths)/bin:$PATH" \
             ci/package.sh result release
-          tar -czf "$ARTIFACT" -C release qntx-switchai-py-plugin qntx-switchai-py-plugin.bin lib/ python/
+          tar -czf "$ARTIFACT" -C release qntx-switchai-py-plugin qntx-switchai-py-plugin.bin lib/ python/ handlers/
           sha256sum "$ARTIFACT" > "$ARTIFACT.sha256"
           echo "artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
       - name: Verify the archive is one the node can take
