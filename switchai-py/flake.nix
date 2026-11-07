@@ -6,14 +6,14 @@
     # against glibc 2.40, which loads there.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
-    # pyre main, with @llm, @route and plugin_config (teranos/pyre#6).
+    # pyre main, with @llm, @route, plugin_config (teranos/pyre#6) and @rooms (teranos/pyre#8).
     pyre-src = {
-      url = "github:teranos/pyre/847344edc02c6a0536b31e63379ad334130f54f3";
+      url = "github:teranos/pyre/a6c4cebc83bb3b932d6602fa739761d072ca2356";
       flake = false;
     };
     # The protocol pyre builds against: the ref pyre's Cargo.lock names.
     qntx-src = {
-      url = "github:teranos/QNTX/035c62ed46375dde51243efe509006e610a8a76e";
+      url = "github:teranos/QNTX/8793497a197fc945676a11f2acc3f14d305136f7";
       flake = false;
     };
     # Switch Rooms' source; switch-core is its core/.
@@ -56,7 +56,7 @@
         pkgs = import nixpkgs { inherit system; };
         inherit (pkgs) lib;
 
-        switchaiPyVersion = "0.1.0";
+        switchaiPyVersion = "0.2.0";
 
         switchCore =
           (import ./nix/switch-core.nix {
@@ -86,7 +86,7 @@
         };
 
         outputHashes = {
-          "qntx-ats-0.2.44" = "sha256-xFz5NDwDLEr7t2eG1K2PFvJP17ke00NZ2VlLwh4YKgE=";
+          "qntx-ats-0.2.44" = "sha256-bHkfuwmivE29uXjYqABTSNlUNu5hl41cwgnCPLRczbM=";
         };
 
         switchai-py = pkgs.rustPlatform.buildRustPackage {
