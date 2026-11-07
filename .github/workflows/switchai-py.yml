@@ -1,0 +1,27 @@
+name: switchai-py
+
+on:
+  push:
+    paths:
+      - "switchai-py/**"
+      - ".github/workflows/switchai-py.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Interpreter check
+        working-directory: switchai-py
+        run: nix build .#checks.x86_64-linux.interpreter --show-trace -L
+      - name: Build plugin
+        working-directory: switchai-py
+        run: nix build .#switchai-py --show-trace -L
