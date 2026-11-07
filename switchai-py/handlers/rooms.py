@@ -66,7 +66,7 @@ def _key(name):
 def _held():
     held = getattr(builtins, "_switchai", None)
     if held is None:
-        held = {"lock": threading.Lock(), "started": False, "agents": {}, "node_room": None}
+        held = {"lock": threading.Lock(), "agents_lock": threading.RLock(), "started": False, "agents": {}, "node_room": None}
         builtins._switchai = held
     return held
 
@@ -160,8 +160,13 @@ def _kept_agents():
 
 
 def _keep_agent(name, agent):
+    # Under agents_lock, held by _register: two writers would interleave.
     kept = _kept_agents()
     kept[name] = agent
+    _keep_all(kept)
+
+
+def _keep_all(kept):
     path = _agents_file()
     fd = os.open(path + ".new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
@@ -171,6 +176,11 @@ def _keep_agent(name, agent):
 
 def _register(name, description="", display_name=None):
     held = _held()
+    with held["agents_lock"]:
+        return _register_held(held, name, description, display_name)
+
+
+def _register_held(held, name, description, display_name):
     if name in held["agents"]:
         return held["agents"][name]
     kept = _kept_agents().get(name)
@@ -361,9 +371,24 @@ def answer(call, request):
     return {"error": {"code": "INVALID_ARGUMENT", "message": f"switchai-py does not answer {call}"}}
 
 
+def _forget_all():
+    # Keys switch-core refuses: every agent is registered again on the next ask.
+    held = _held()
+    with held["agents_lock"]:
+        held["agents"].clear()
+        held["in_rooms"] = set()
+        _keep_all({})
+
+
 @rooms()
 def held(asked):
     try:
-        return answer(asked.get("call", ""), asked.get("request") or {})
+        try:
+            return answer(asked.get("call", ""), asked.get("request") or {})
+        except RuntimeError as e:
+            if " with 401" not in str(e):
+                raise
+            _forget_all()
+            return answer(asked.get("call", ""), asked.get("request") or {})
     except Exception as e:
         return {"error": {"code": "UNAVAILABLE", "message": f"{type(e).__name__}: {e}"}}
