@@ -6,7 +6,7 @@
     # against glibc 2.40, which loads there.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
-    # pyre main, with @llm, @route, plugin_config (teranos/pyre#6) and @rooms (teranos/pyre#8).
+    # 「[Opus 5.5] pyre main, with @llm, @route, plugin_config (teranos/pyre#6) and @rooms (teranos/pyre#8).」
     pyre-src = {
       url = "github:teranos/pyre/a6c4cebc83bb3b932d6602fa739761d072ca2356";
       flake = false;

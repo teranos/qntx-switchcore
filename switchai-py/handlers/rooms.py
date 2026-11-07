@@ -1,6 +1,6 @@
-# switchai-py's rooms (QNTX ADR-057): switch-core, in this process, holds them.
-# pyre runs this module again for every call, so what has to last (switch-core
-# running, the agents it registered) is kept on builtins between calls.
+# 「[Opus 5.5] switchai-py's rooms (QNTX ADR-057): switch-core, in this process, holds them.」
+# 「[Opus 5.5] pyre runs this module again for every call, so what has to last (switch-core」
+# 「[Opus 5.5] running, the agents it registered) is kept on builtins between calls.」
 
 import builtins
 import datetime
@@ -16,9 +16,9 @@ import urllib.request
 PROVIDER = "switchai-py"
 REACH_WAITS = 2
 
-# The plugin's record on the node may name each of these; unnamed, switch-core's
-# database is reached over the local socket as the plugin's own user, peer
-# authenticated, and its keys are the plugin's own (_keys).
+# 「[Opus 5.5] The plugin's record on the node may name each of these; unnamed, switch-core's」
+# 「[Opus 5.5] database is reached over the local socket as the plugin's own user, peer」
+# 「[Opus 5.5] authenticated, and its keys are the plugin's own (_keys).」
 DEFAULTS = {
     "db_host": "/var/run/postgresql",
     "db_port": "5432",
@@ -39,8 +39,8 @@ def _config(key):
 
 
 def _keys():
-    # switch-core's registration token, keyring and admin, made once and kept
-    # beside its data, readable by the plugin's user alone.
+    # 「[Opus 5.5] switch-core's registration token, keyring and admin, made once and kept」
+    # 「[Opus 5.5] beside its data, readable by the plugin's user alone.」
     path = os.path.join(_config("state_dir"), "keys.json")
     if os.path.exists(path):
         with open(path) as f:
@@ -85,8 +85,8 @@ def _http(method, path, body=None, key=None):
 
 
 def _serve():
-    # switch-core's run() asks its loop for signal handlers, which only the main
-    # thread's loop gives; a loop that takes none is a case switch-core handles.
+    # 「[Opus 5.5] switch-core's run() asks its loop for signal handlers, which only the main」
+    # 「[Opus 5.5] thread's loop gives; a loop that takes none is a case switch-core handles.」
     import asyncio
 
     from switch_core import main as core
@@ -139,7 +139,7 @@ def _start():
 
 
 def _register(name, description=""):
-    # Registered over itself, so a restarted plugin holds a key that works.
+    # 「[Opus 5.5] Registered over itself, so a restarted plugin holds a key that works.」
     held = _held()
     if name in held["agents"]:
         return held["agents"][name]
@@ -157,7 +157,7 @@ def _register(name, description=""):
 
 
 def _node():
-    # The node's own agent in switch-core, through which the node asks.
+    # 「[Opus 5.5] The node's own agent in switch-core, through which the node asks.」
     return _register("qntx-node", "the QNTX node")
 
 
@@ -166,7 +166,7 @@ def _op(agent, op, body):
 
 
 def _as(by):
-    # An agent the node names asks as itself; a person, as the node.
+    # 「[Opus 5.5] An agent the node names asks as itself; a person, as the node.」
     name = (by or {}).get("name") or ""
     held = _held()
     if name and name in held["agents"]:
@@ -188,7 +188,7 @@ def _rooms():
 
 
 def _node_room():
-    # Every Node Agent is in the Node Room.
+    # 「[Opus 5.5] Every Node Agent is in the Node Room.」
     held = _held()
     if held["node_room"]:
         return held["node_room"]
@@ -251,7 +251,7 @@ def answer(call, request):
         agents = request.get("agents", [])
         said = " ".join("@" + a.get("name", "") for a in agents) + " " + request.get("says", "")
         posted = _post(request.get("by"), request.get("room"), said.strip())
-        # Whether a mention reaches an agent is its own addressing policy's: it stands in the room.
+        # 「[Opus 5.5] Whether a mention reaches an agent is its own addressing policy's: it stands in the room.」
         return {"id": posted, "woken": [{"agent": a, "reach": REACH_WAITS} for a in agents]}
     if call == "ReadRoom":
         query = {k: request[k] for k in ("limit", "since", "before") if request.get(k)}
