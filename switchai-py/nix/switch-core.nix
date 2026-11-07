@@ -25,11 +25,11 @@ let
       python ? pkgs.python313,
     }:
     let
-      # switch_core/main.py:2506 reads alembic.ini at
-      # Path(__file__).resolve().parent.parent: resolve() follows the venv's
-      # symlink to switch-core's own store path, so the file goes in that
-      # package's site-packages. Its script_location,
-      # %(here)s/switch_core/migrations, is in the package.
+      # 「[Opus 5.5] switch_core/main.py:2506 reads alembic.ini at」
+      # 「[Opus 5.5] Path(__file__).resolve().parent.parent: resolve() follows the venv's」
+      # 「[Opus 5.5] symlink to switch-core's own store path, so the file goes in that」
+      # 「[Opus 5.5] package's site-packages. Its script_location,」
+      # 「[Opus 5.5] %(here)s/switch_core/migrations, is in the package.」
       overrides = final: prev: {
         switch-core = prev.switch-core.overrideAttrs (old: {
           postInstall = (old.postInstall or "") + ''
