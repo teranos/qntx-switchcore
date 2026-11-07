@@ -71,16 +71,21 @@ def _held():
     return held
 
 
-def _http(method, path, body=None, key=None):
-    data = json.dumps(body).encode() if body is not None else None
+def _http(method, path, body=None, key=None, raw=None, content_type="application/json"):
+    # raw is a body sent as it is, content_type naming it; an answer that is not
+    # JSON comes back as its bytes and its type.
+    data = raw if raw is not None else json.dumps(body).encode() if body is not None else None
     request = urllib.request.Request("http://127.0.0.1:" + _config("port") + path, data=data, method=method)
-    request.add_header("Content-Type", "application/json")
+    request.add_header("Content-Type", content_type)
     if key:
         request.add_header("Authorization", "Bearer " + key)
     try:
-        with urllib.request.urlopen(request, timeout=30) as answer:
-            raw = answer.read()
-            return json.loads(raw) if raw else {}
+        with urllib.request.urlopen(request, timeout=60) as answer:
+            read = answer.read()
+            kind = answer.headers.get("Content-Type", "")
+            if not kind.startswith("application/json"):
+                return read, kind
+            return json.loads(read) if read else {}
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"switch-core answered {method} {path} with {e.code}: {e.read().decode(errors='replace')}")
 
@@ -314,10 +319,43 @@ def _at(ms):
     return datetime.datetime.fromtimestamp(ms / 1000, datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _post(by, room, content):
+def _file_data(data):
+    # The node's bytes arrive as a list of numbers, or as base64.
+    if isinstance(data, str):
+        import base64
+
+        return base64.b64decode(data)
+    return bytes(data or [])
+
+
+def _post(by, room, content, files=None, thread=""):
     sender = _as(by, room)
-    posted = _http("POST", f"/agents/{sender['id']}/message", {"room_id": room, "content": content, "metadata": {}}, key=sender["key"])
+    if not files:
+        posted = _http("POST", f"/agents/{sender['id']}/message", {"room_id": room, "content": content, "metadata": {}}, key=sender["key"])
+        return posted.get("event_id", "")
+    # Files go through switch-core's media route, the body their caption.
+    boundary = secrets.token_hex(16)
+    parts = []
+    fields = {"caption": content, "thread_id": thread}
+    for field, value in fields.items():
+        if value:
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"\r\n\r\n{value}\r\n'.encode())
+    for each in files:
+        name = (each.get("name") or "file").replace('"', "")
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="{name}"\r\n'
+                     f'Content-Type: {each.get("type") or "application/octet-stream"}\r\n\r\n'.encode()
+                     + _file_data(each.get("data")) + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    posted = _http("POST", f"/agents/{sender['id']}/rooms/{room}/media", raw=b"".join(parts), key=sender["key"],
+                   content_type="multipart/form-data; boundary=" + boundary)
     return posted.get("event_id", "")
+
+
+def _attachments(room, event):
+    # Each attachment is served by the node, through this plugin's media route.
+    return [{"name": a.get("filename", ""), "type": a.get("mimetype", ""),
+             "url": f"/api/{PROVIDER}/media?" + urllib.parse.urlencode({"room": room, "mxc": a.get("mxc", "")})}
+            for a in event.get("attachments") or [] if a.get("mxc")]
 
 
 def answer(call, request):
@@ -350,7 +388,8 @@ def answer(call, request):
         _op(_as(request.get("by")), "invite_agent_to_room", {"room_id": request.get("room"), "agent_name": agent.get("name")})
         return {"involved": agent}
     if call == "PostToRoom":
-        return {"id": _post(request.get("by"), request.get("room"), request.get("body", ""))}
+        return {"id": _post(request.get("by"), request.get("room"), request.get("body", ""),
+                            request.get("files"), request.get("thread", ""))}
     if call == "WakeInRoom":
         agents = request.get("agents", [])
         said = " ".join("@" + a.get("name", "") for a in agents) + " " + request.get("says", "")
@@ -364,8 +403,10 @@ def answer(call, request):
         if query:
             path += "?" + urllib.parse.urlencode(query)
         read = _http("GET", path, key=reader["key"])
-        messages = [{"room": request.get("room"), "sender": e.get("sender", ""), "sender_name": e.get("sender_name", ""),
-                     "body": e.get("body", ""), "at": _at(e["timestamp"]) if e.get("timestamp") else ""}
+        messages = [{"id": e.get("id") or "", "room": request.get("room"), "sender": e.get("sender", ""),
+                     "sender_name": e.get("sender_name", ""), "body": e.get("body", ""),
+                     "at": _at(e["timestamp"]) if e.get("timestamp") else "",
+                     "attachments": _attachments(request.get("room"), e)}
                     for e in read.get("events", [])]
         return {"messages": messages, "truncated": bool(read.get("has_more"))}
     return {"error": {"code": "INVALID_ARGUMENT", "message": f"switchai-py does not answer {call}"}}
@@ -378,6 +419,23 @@ def _forget_all():
         held["agents"].clear()
         held["in_rooms"] = set()
         _keep_all({})
+
+
+@route("GET", "/media")
+def media(request):
+    # An attachment's bytes, as the node's own agent in switch-core reads them.
+    asked = urllib.parse.parse_qs(request.get("query", ""))
+    room, mxc = (asked.get("room") or [""])[0], (asked.get("mxc") or [""])[0]
+    if not room or not mxc:
+        return {"status": 400, "headers": {"Content-Type": "text/plain"}, "body": "media takes room and mxc"}
+    try:
+        _start()
+        reader = _node()
+        data, kind = _http("GET", f"/agents/{reader['id']}/rooms/{room}/media?" + urllib.parse.urlencode({"mxc": mxc}),
+                           key=reader["key"])
+    except Exception as e:
+        return {"status": 502, "headers": {"Content-Type": "text/plain"}, "body": f"{type(e).__name__}: {e}"}
+    return {"status": 200, "headers": {"Content-Type": kind or "application/octet-stream"}, "body": data}
 
 
 @rooms()
