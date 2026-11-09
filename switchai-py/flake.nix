@@ -6,9 +6,9 @@
     # against glibc 2.40, which loads there.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
-    # pyre main, with @llm, @route, plugin_config (teranos/pyre#6) @rooms (teranos/pyre#8) and handlers carried by the build (teranos/pyre#10).
+    # pyre main, with @llm, @route, plugin_config (teranos/pyre#6) @rooms (teranos/pyre#8) and handlers carried by the build (teranos/pyre#10); Python on the blocking pool so Health answers under load (#12); and the Sentry keys the node hands it, shipped from every runtime thread (#18).
     pyre-src = {
-      url = "github:teranos/pyre/0f89290aaa59fe283319f1769bccc9ca3fb0223d";
+      url = "github:teranos/pyre/147ac90ea529918743bb82ae8725fb4ec84c3574";
       flake = false;
     };
     # The protocol pyre builds against: the ref pyre's Cargo.lock names.
@@ -56,7 +56,7 @@
         pkgs = import nixpkgs { inherit system; };
         inherit (pkgs) lib;
 
-        switchaiPyVersion = "0.3.0";
+        switchaiPyVersion = "0.3.1";
 
         switchCore =
           (import ./nix/switch-core.nix {
