@@ -80,6 +80,5 @@ post, wake; the plugin survived a reinstall and two restarts in a day. A wake
 posts the mention into the room, and what answers it today is switch-core's own
 canned reply for that name, not the named Node Agent's harness: the turn it
 should start is being wired. Every post shows as the node (`qntx-node`), a
-person's and an agent's alike, until who-posts is carried through. The Node
-Room's `of.node` is not yet set; the App finds the Node Room by it, so on this
-node the phone does not open into the room until it is.
+person's and an agent's alike, until who-posts is carried through. On the
+owner's phone the App opens into the Node Room.
