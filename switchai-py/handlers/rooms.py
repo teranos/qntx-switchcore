@@ -30,6 +30,12 @@ DEFAULTS = {
     "port": "8790",
     "node_room": "Node Room",
     "node_agents": "claude,agy,codex",
+    # Switch Trust's guardrails, which switch-core checks every message against.
+    # Without a policy id and a key, nothing is applied and what switch-core
+    # holds is left as it is.
+    "trust_endpoint": "https://api.switchagents.ai",
+    "trust_policy_id": "",
+    "trust_api_key": "",
 }
 
 
@@ -142,11 +148,51 @@ def _start():
                 raise RuntimeError("switch-core stopped while starting: the plugin's log says why")
             try:
                 _http("GET", "/health")
-                held["started"] = True
-                return
             except Exception:
                 time.sleep(1)
+                continue
+            held["started"] = True
+            try:
+                _trust()
+            except Exception as e:
+                # Rooms work without guardrails; the plugin's log says why not.
+                print(f"switchai-py: Switch Trust was not applied: {e}", flush=True)
+            return
         raise RuntimeError("switch-core did not answer /health within 120s")
+
+
+def _trust():
+    # The node's record names the policy and holds the key, so they outlast
+    # switch-core's database, where it keeps them: they are put there again only
+    # where they differ.
+    keys = _keys()
+    policy = _config("trust_policy_id")
+    key = _config("trust_api_key")
+    if not policy or not key:
+        return
+    endpoint = _config("trust_endpoint")
+    base = "http://127.0.0.1:" + _config("port") + "/gateway"
+    login = urllib.request.Request(base + "/auth/login", method="POST",
+                                   data=json.dumps({"email": keys["admin_email"], "password": keys["admin_password"]}).encode())
+    login.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(login, timeout=60) as answer:
+        # The session cookie is Secure, which urllib will not send over http, so
+        # it goes back as it came.
+        cookies = "; ".join(c.split(";", 1)[0] for c in answer.headers.get_all("Set-Cookie") or [])
+
+    def call(method, body=None):
+        request = urllib.request.Request(base + "/trust-settings", method=method,
+                                         data=json.dumps(body).encode() if body is not None else None)
+        request.add_header("Content-Type", "application/json")
+        request.add_header("Cookie", cookies)
+        with urllib.request.urlopen(request, timeout=60) as answer:
+            return json.loads(answer.read() or "{}")
+
+    held = call("GET")
+    if (held.get("endpoint") == endpoint and held.get("policy_id") == policy
+            and held.get("has_api_key") and held.get("api_key_last4") == key[-4:]):
+        return
+    call("PUT", {"endpoint": endpoint, "policy_id": policy, "api_key": key})
 
 
 def _agents_file():
