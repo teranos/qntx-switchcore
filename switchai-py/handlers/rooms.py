@@ -31,10 +31,11 @@ DEFAULTS = {
     "node_room": "Node Room",
     "node_agents": "claude,agy,codex",
     # Switch Trust's guardrails, which switch-core checks every message against.
-    # Without a policy id, or without the key in keys.json (trust_api_key),
-    # nothing is applied and what switch-core holds is left as it is.
+    # Without a policy id and a key, nothing is applied and what switch-core
+    # holds is left as it is.
     "trust_endpoint": "https://api.switchagents.ai",
     "trust_policy_id": "",
+    "trust_api_key": "",
 }
 
 
@@ -161,12 +162,12 @@ def _start():
 
 
 def _trust():
-    # The node's record names the policy; the key is beside switch-core's other
-    # keys (keys.json, trust_api_key), never in the record. switch-core holds
-    # these in its database, so they are put there again only where they differ.
+    # The node's record names the policy and holds the key, so they outlast
+    # switch-core's database, where it keeps them: they are put there again only
+    # where they differ.
     keys = _keys()
     policy = _config("trust_policy_id")
-    key = keys.get("trust_api_key", "")
+    key = _config("trust_api_key")
     if not policy or not key:
         return
     endpoint = _config("trust_endpoint")
