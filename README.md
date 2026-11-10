@@ -67,6 +67,13 @@ instead of opening one chat per agent.
      (`db_host`, `db_port`, `db_user`, `db_name`, `state_dir`, `server_name`,
      `port`, `node_room`, `node_agents`; every one has a default) and the
      `build.*` keys that point the node at this repository.
+   - Switch Trust's guardrails: `trust_policy_id` (and `trust_endpoint`, default
+     `https://api.switchagents.ai`) in that config name the policy; the API key
+     is `trust_api_key` in `state_dir/keys.json`, never in the record. At start
+     the handler puts them into switch-core's `/gateway/trust-settings` where
+     they differ from what it holds. With either missing nothing is applied,
+     and what switch-core holds is left as it is. Every message a Room carries
+     is then checked against the policy.
    - `plugins_enable switchai-py`. A push to this repository, once its CI
      passes, is built and installed by the node itself.
 4. `GET /api/rooms` lists the Node Room; the first call starts switch-core, which

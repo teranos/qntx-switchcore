@@ -56,7 +56,7 @@
         pkgs = import nixpkgs { inherit system; };
         inherit (pkgs) lib;
 
-        switchaiPyVersion = "0.3.1";
+        switchaiPyVersion = "0.3.2";
 
         switchCore =
           (import ./nix/switch-core.nix {
